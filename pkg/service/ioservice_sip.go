@@ -22,6 +22,7 @@ import (
 	"github.com/dennwc/iters"
 	"github.com/twitchtv/twirp"
 
+	"github.com/livekit/livekit-server/pkg/service/sipidentity"
 	"github.com/livekit/protocol/livekit"
 	"github.com/livekit/protocol/logger"
 	"github.com/livekit/protocol/rpc"
@@ -125,6 +126,12 @@ func (s *IOInfoService) EvaluateSIPDispatchRules(ctx context.Context, req *rpc.E
 	}
 	resp.Upgrade()
 	resp.SipTrunkId = trunkID
+
+	override := sipidentity.Resolve(ctx, &sipIdentityAdapter{resp: resp})
+	if override != "" {
+		resp.ParticipantIdentity = override
+	}
+
 	return resp, err
 }
 
@@ -151,4 +158,18 @@ func (s *IOInfoService) GetSIPTrunkAuthentication(ctx context.Context, req *rpc.
 	}
 	log.Debugw("SIP trunk matched for auth", "sipTrunk", trunk.SipTrunkId)
 	return sip.InboundTrunkAuthPrompt(trunk)
+}
+
+// sipIdentityAdapter 适配 *rpc.EvaluateSIPDispatchRulesResponse 到
+// sipidentity.ParticipantIdentitySource 接口。
+// 放在 sip.go 中是因为它引用了 rpc 和 livekit(protocol) 类型。
+type sipIdentityAdapter struct {
+	resp *rpc.EvaluateSIPDispatchRulesResponse
+}
+
+func (a *sipIdentityAdapter) GetTrunkPhoneNumber() string {
+	if a.resp == nil {
+		return ""
+	}
+	return a.resp.ParticipantAttributes[livekit.AttrSIPTrunkNumber]
 }

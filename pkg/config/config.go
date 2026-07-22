@@ -89,7 +89,8 @@ type Config struct {
 
 	EnableDataTracks bool `yaml:"enable_data_tracks,omitempty"`
 
-	API APIConfig `yaml:"api,omitempty"`
+	API  APIConfig  `yaml:"api,omitempty"`
+	SIPX SIPConfigX `yaml:"sipx,omitempty"`
 }
 
 type RTCConfig struct {
@@ -458,6 +459,7 @@ var DefaultConfig = Config{
 	NodeStats:        DefaultNodeStatsConfig,
 	API:              DefaultAPIConfig(),
 	EnableDataTracks: true,
+	SIPX:             DefaultSIPConfigX,
 }
 
 func NewConfig(confString string, strictMode bool, c *cli.Command, baseFlags []cli.Flag) (*Config, error) {
@@ -533,6 +535,10 @@ func NewConfig(confString string, strictMode bool, c *cli.Command, baseFlags []c
 	}
 	if conf.Room.MaxRoomNameLength != 0 {
 		conf.Limit.MaxRoomNameLength = conf.Room.MaxRoomNameLength
+	}
+
+	if err := conf.ValidateSIPInbound(); err != nil {
+		return nil, err
 	}
 
 	return &conf, nil
@@ -854,4 +860,54 @@ func SetLogger(l logger.Logger) {
 
 func InitLoggerFromConfig(config *LoggingConfig) {
 	logger.InitFromConfig(&config.Config, "livekit")
+}
+
+type SIPInboundParticipantConfig struct {
+	IdentityMapping  map[string]string         `yaml:"identity_mapping"`
+	IdentityResolver SIPIdentityResolverConfig `yaml:"identity_resolver"`
+}
+
+type SIPIdentityResolverConfig struct {
+	ResolverURL     string `yaml:"resolver_url"`
+	ResolverToken   string `yaml:"resolver_token"`
+	ResolverTimeout int    `yaml:"resolver_timeout"`
+}
+
+type SIPConfigX struct {
+	Inbound SIPInboundConfig `yaml:"inbound"`
+}
+
+type SIPInboundConfig struct {
+	Participant SIPInboundParticipantConfig `yaml:"participant"`
+}
+
+var DefaultSIPConfigX = SIPConfigX{
+	Inbound: SIPInboundConfig{
+		Participant: SIPInboundParticipantConfig{
+			IdentityMapping: map[string]string{},
+			IdentityResolver: SIPIdentityResolverConfig{
+				ResolverURL:     "",
+				ResolverToken:   "",
+				ResolverTimeout: 2000,
+			},
+		},
+	},
+}
+
+func (c *Config) ValidateSIPInbound() error {
+	if len(c.SIPX.Inbound.Participant.IdentityMapping) == 0 && c.SIPX.Inbound.Participant.IdentityResolver.ResolverURL == "" {
+		return nil
+	}
+
+	resolver := c.SIPX.Inbound.Participant.IdentityResolver
+	// 默认 2 秒
+	if resolver.ResolverTimeout <= 0 {
+		resolver.ResolverTimeout = 2000
+	}
+	// 最大 5 秒
+	if resolver.ResolverTimeout > 5000 {
+		resolver.ResolverTimeout = 5000
+	}
+
+	return nil
 }

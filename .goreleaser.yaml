@@ -42,7 +42,7 @@ archives:
       - LICENSE
 release:
   github:
-    owner: livekit
+    owner: homelab89
     name: livekit
   draft: true
   prerelease: auto
@@ -53,7 +53,7 @@ changelog:
       - '^docs:'
       - '^test:'
 gomod:
-  proxy: true
+  proxy: false
   mod: mod
 checksum:
   name_template: 'checksums.txt'

@@ -35,6 +35,7 @@ import (
 	"github.com/livekit/livekit-server/pkg/routing"
 	"github.com/livekit/livekit-server/pkg/rtc"
 	"github.com/livekit/livekit-server/pkg/service"
+	"github.com/livekit/livekit-server/pkg/service/sipidentity"
 	"github.com/livekit/livekit-server/pkg/telemetry/prometheus"
 	"github.com/livekit/livekit-server/version"
 )
@@ -301,6 +302,8 @@ func startServer(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
+	buildSIPIdentityResolver(conf)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
@@ -327,4 +330,31 @@ func getConfigString(configFile string, inConfigBody string) (string, error) {
 	}
 
 	return string(outConfigBody), nil
+}
+
+func buildSIPIdentityResolver(conf *config.Config) {
+	if conf == nil {
+		return
+	}
+
+	cfg := conf.SIPX.Inbound.Participant
+
+	builder := sipidentity.BuildConfig{
+		IdentityMapping: cfg.IdentityMapping,
+	}
+
+	builder.HTTPURL = cfg.IdentityResolver.ResolverURL
+	builder.HTTPToken = cfg.IdentityResolver.ResolverToken
+	builder.HTTPTimeoutMs = cfg.IdentityResolver.ResolverTimeout
+	if builder.HTTPTimeoutMs <= 0 {
+		builder.HTTPTimeoutMs = 2000
+	}
+	if builder.HTTPTimeoutMs > 5000 {
+		builder.HTTPTimeoutMs = 5000
+	}
+
+	resolver := sipidentity.BuildResolver(builder)
+	if resolver != nil {
+		sipidentity.SetGlobalResolver(resolver)
+	}
 }
